@@ -3,7 +3,7 @@
 Este documento los guiará paso a paso para poner en marcha el sistema de microservicios y el
 orquestador Lambda en el entorno local.
 
-## 📋 Prerrequisitos
+## Prerrequisitos
 
 Antes de comenzar, asegurarse de tener instalado:
 - Docker Desktop.
@@ -11,7 +11,7 @@ Antes de comenzar, asegurarse de tener instalado:
 - Postman, Insomnia o cualquier cliente HTTP.
 - Framework Serverless global (opcional): npm install -g serverless.
 
-## 🛠 Paso 1: Descargar el Proyecto
+## Paso 1: Descargar el Proyecto
 
 Primero, se debe clonar el repositorio desde GitHub e ingresar en la
 carpeta principal
@@ -21,7 +21,7 @@ git clone <URL_DEL_REPOSITORIO>
 cd proyecto-senior-test
 ```
 
-## 🔐 Paso 2: Configuración de Variables de Entorno
+## Paso 2: Configuración de Variables de Entorno
 El sistema necesita archivos ```.env``` en tres carpetas distintas para saber como conectarse entre si. Se debe crear un archivo llamado ```.env``` en cada una de las siguientes rutas
 
 1. En ```customers-api/.env
@@ -79,7 +79,7 @@ El orquestador es el encargado de unir los procesos de ambas APIs. Se debe ejecu
 
 El orquestador estará escuchando en: ```http://localhost:3000```
 
-## 🚀 Paso 5: Pruebas con Postman
+## Paso 5: Pruebas con Postman
 
 Para probar el flujo completo se debe ejecutar los requests desde Postman
 
@@ -97,6 +97,109 @@ Para probar el flujo completo se debe ejecutar los requests desde Postman
   "idempotency_key": "pago-unico-001",
   "correlation_id": "req-999"
 }
+```
+
+## Paso 6: Catálogo de Pruebas (CURL)
+1. Customers API (Puerto 3001)
+- Health
+```
+curl --location 'http://localhost:3001/health'
+```
+
+2. Registrar Cliente
+```
+curl --location 'http://localhost:3001/customers' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "name": "Juan Perez",
+  "email": "juan.perez@example.com",
+  "phone": "+541122334455"
+}'
+```
+
+3. Listar Cliente
+```
+curl --location 'http://localhost:3001/customers?search=Stark&limit=5' \
+--header 'Content-Type: application/json'
+```
+
+4. Borrar Cliente (Soft Delte)
+```
+curl --location --request DELETE 'http://localhost:3001/customers/1' \
+--header 'Content-Type: application/json'
+```
+
+5. Detalle del Cliente
+```
+curl --location 'http://localhost:3001/customers/1' \
+--header 'Content-Type: application/json'
+```
+6. Actualizar Cliente
+```
+curl --location --request PUT 'http://localhost:3001/customers/2' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "ACME EDITED CORP"
+}'
+```
+
+2. Orders API - Productos (Puerto 3010)
+- Crear Producto
+```
+curl --location 'http://localhost:3010/products' \
+--header 'Content-Type: application/json' \
+--data '{
+  "sku": "LAP-001",
+  "name": "MacBook Pro M3",
+  "price_cents": 250000,
+  "stock": 10
+}'
+```
+
+- Listar Productos
+```
+curl --location 'http://localhost:3010/products?search=Pro&limit=5'
+```
+
+- Actualizar Stock
+```
+curl --location --request PATCH 'http://localhost:3010/products/5' \
+--header 'Content-Type: application/json' \
+--data '{
+  "price_cents": 30000,
+  "stock": 20
+}'
+```
+
+- Crear Orden
+```
+curl --location 'http://localhost:3010/orders' \
+--header 'Content-Type: application/json' \
+--data '{
+  "customer_id": 1,
+  "items": [
+    { "product_id": 1, "qty": 10 },
+    { "product_id": 2, "qty": 15 }
+  ]
+}'
+```
+
+- Confirmar Orden
+```
+curl --location --request POST 'http://localhost:3010/orders/1/confirm' \
+--header 'X-Idempotency-Key: llave-unica-pago-001'
+```
+
+- Cancelar Orden
+```
+curl --location --request POST 'http://localhost:3010/orders/2/cancel' \
+--header 'Content-Type: application/json'
+```
+
+- Listar Ordenes con Filtro
+```
+curl --location 'http://localhost:3010/orders?status=CREATED&limit=10' \
+--header 'Content-Type: application/json'
 ```
 
 ## 🛠 Comandos Útiles de DB
