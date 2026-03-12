@@ -4,7 +4,7 @@ const { z } = require("zod");
 const cors = require("cors");
 
 const app = express();
-app.use(cors()); // Habilitado para permitir pruebas desde Swagger/Web
+app.use(cors());
 app.use(express.json());
 
 const pool = mysql.createPool({

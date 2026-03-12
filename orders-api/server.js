@@ -19,7 +19,7 @@ const pool = mysql.createPool({
 });
 
 const CUSTOMERS_API_BASE =
-  process.env.CUSTOMERS_API_BASE || "http://customers-api:3001";
+  process.env.CUSTOMERS_API_BASE || "http://localhost:3001";
 const SERVICE_TOKEN = process.env.SERVICE_TOKEN || "secret_token";
 
 // Middleware para loguear cada petición que llega
