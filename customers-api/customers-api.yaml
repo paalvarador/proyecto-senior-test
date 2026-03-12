@@ -1,0 +1,180 @@
+openapi: 3.0.0
+info:
+  title: Customers API
+  version: 1.0.0
+  description: API para la gestión de clientes con búsqueda, paginación por cursor y borrado lógico.
+
+servers:
+  - url: http://localhost:3001
+    description: Servidor Local de Clientes
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      tags: [Utility]
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "OK" }
+                  service: { type: string, example: "Customers" }
+
+  /customers:
+    get:
+      summary: Listar clientes con búsqueda y paginación
+      tags: [Customers]
+      parameters:
+        - name: search
+          in: query
+          description: Filtro de búsqueda por nombre o email
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: ID del último cliente para paginación
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: Cantidad de resultados por página
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de clientes obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  meta:
+                    type: object
+                    properties:
+                      next_cursor: { type: [integer, "null"] }
+                      count: { type: integer }
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+    post:
+      summary: Crear un nuevo cliente
+      tags: [Customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+      responses:
+        '201':
+          description: Cliente creado exitosamente
+        '400':
+          description: Error de validación (Zod)
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /customers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Detalle público de un cliente
+      tags: [Customers]
+      responses:
+        '200':
+          description: Datos del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Cliente no encontrado
+    put:
+      summary: Actualizar parcialmente un cliente
+      tags: [Customers]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+      responses:
+        '200':
+          description: Cliente actualizado correctamente
+        '404':
+          description: Cliente no encontrado
+    delete:
+      summary: Borrado lógico de un cliente
+      tags: [Customers]
+      responses:
+        '200':
+          description: Cliente eliminado lógicamente
+        '404':
+          description: Cliente no encontrado
+
+  /internal/customers/{id}:
+    get:
+      summary: Detalle interno para otros servicios
+      tags: [Internal]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Datos completos del cliente
+        '401':
+          description: No autorizado
+        '404':
+          description: Cliente no encontrado
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+  responses:
+    ErrorResponse:
+      description: Error en la petición
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              detail: { type: string }

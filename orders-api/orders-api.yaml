@@ -1,0 +1,269 @@
+openapi: 3.0.0
+info:
+  title: Orders API
+  version: 1.0.0
+  description: API para la gestión de productos y órdenes con soporte para transacciones SQL e idempotencia.
+
+servers:
+  - url: http://localhost:3010
+    description: Servidor Local (Puerto 3010)
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      tags: [Utility]
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "OK" }
+                  service: { type: string, example: "Orders" }
+
+  /products:
+    get:
+      summary: Listar productos con búsqueda y paginación
+      tags: [Products]
+      parameters:
+        - name: search
+          in: query
+          description: Buscar por nombre o SKU
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: ID del último producto para paginación ascendente
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: Cantidad de resultados
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  next_cursor: { type: [integer, "null"] }
+
+    post:
+      summary: Crear un nuevo producto
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, name, price_cents, stock]
+              properties:
+                sku: { type: string, example: "PROD-001" }
+                name: { type: string, example: "Laptop Pro" }
+                price_cents: { type: integer, example: 129900 }
+                stock: { type: integer, example: 10 }
+      responses:
+        '201':
+          description: Producto creado
+        '400':
+          description: Error de validación o SKU duplicado
+
+  /products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Detalle de un producto
+      tags: [Products]
+      responses:
+        '200':
+          description: Datos del producto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Producto no encontrado
+    patch:
+      summary: Actualizar precio o stock de un producto
+      tags: [Products]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                price_cents: { type: integer }
+                stock: { type: integer }
+      responses:
+        '200':
+          description: Producto actualizado correctamente
+        '404':
+          description: Producto no encontrado
+
+  /orders:
+    get:
+      summary: Listar órdenes con filtros y paginación
+      tags: [Orders]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [CREATED, CONFIRMED, CANCELED]
+        - name: from
+          in: query
+          description: Fecha inicio (ISO)
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Fecha fin (ISO)
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          description: ID para paginación descendente
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Lista de órdenes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  next_cursor: { type: [integer, "null"] }
+
+    post:
+      summary: Crear una nueva orden (Estado CREATED)
+      description: Valida cliente en Customers API y descuenta stock mediante transacción.
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer_id, items]
+              properties:
+                customer_id: { type: integer, example: 1 }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [product_id, qty]
+                    properties:
+                      product_id: { type: integer }
+                      qty: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Orden creada exitosamente
+        '400':
+          description: Stock insuficiente o error en la petición
+        '404':
+          description: Cliente no válido o no encontrado
+
+  /orders/{id}:
+    get:
+      summary: Detalle de una orden con sus items
+      tags: [Orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detalle completo de la orden
+        '404':
+          description: Orden no encontrada
+
+  /orders/{id}/confirm:
+    post:
+      summary: Confirmación de orden (Idempotente)
+      tags: [Orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          description: Llave única para evitar duplicados en la confirmación
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Orden confirmada (o resultado previo si la key existe)
+        '400':
+          description: Error en confirmación o falta de X-Idempotency-Key
+
+  /orders/{id}/cancel:
+    post:
+      summary: Cancelar orden y restaurar stock
+      description: |
+        - CREATED: Cancela siempre.
+        - CONFIRMED: Solo dentro de los primeros 10 minutos.
+      tags: [Orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Orden cancelada y stock restaurado
+        '400':
+          description: Regla de negocio incumplida o error en el proceso
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        sku: { type: string }
+        name: { type: string }
+        price_cents: { type: integer }
+        stock: { type: integer }
+
+    Order:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer }
+        total_cents: { type: integer }
+        status: { type: string, enum: [CREATED, CONFIRMED, CANCELED] }
+        created_at: { type: string, format: date-time }

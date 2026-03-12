@@ -1,0 +1,33 @@
+service: lambda-orchestrator
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  stage: dev
+  # Mantenemos esto limpio para evitar el error de JSON en Serverless v4.
+  # El código cargará CUSTOMERS_API_BASE y ORDERS_API_BASE desde el .env
+  environment:
+    CUSTOMERS_API_BASE: ${env:CUSTOMERS_API_BASE, 'http://localhost:3001'}
+    ORDERS_API_BASE: ${env:ORDERS_API_BASE, 'http://localhost:3002'}
+    SERVICE_TOKEN: ${env:SERVICE_TOKEN, 'secret_token'}
+
+# 'functions' debe estar en la raíz, no dentro de provider
+functions:
+  orchestrateOrder:
+    handler: handler.orchestrateOrder
+    events:
+      - http:
+          path: orchestrator/create-and-confirm-order
+          method: post
+          cors: true
+
+# 'plugins' debe estar en la raíz
+plugins:
+  - serverless-offline
+
+# La configuración de plugins va en la sección 'custom'
+custom:
+  serverless-offline:
+    httpPort: 3003
+    noPrependStageInUrl: true

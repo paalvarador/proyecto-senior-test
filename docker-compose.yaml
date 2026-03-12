@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Base de Datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: senior-test-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: test_db
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      # Carga automática del esquema y los datos iniciales
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API de Clientes (Customers)
+  customers-api:
+    build: 
+      context: ./customers-api
+      dockerfile: Dockerfile # Asegúrate de tener un Dockerfile básico en la carpeta
+    container_name: customers-api
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_HOST: db
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: test_db
+      SERVICE_TOKEN: secret_token # Token para comunicación entre servicios
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # API de Pedidos (Orders)
+  orders-api:
+    build: 
+      context: ./orders-api
+      dockerfile: Dockerfile
+    container_name: orders-api
+    ports:
+      - "3010:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DB_HOST: db
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: test_db
+      SERVICE_TOKEN: secret_token
+      CUSTOMERS_API_BASE: http://customers-api:3001 # URL interna de Docker
+    depends_on:
+      db:
+        condition: service_healthy
+      customers-api:
+        condition: service_started
+
+networks:
+  default:
+    name: senior-test-network
